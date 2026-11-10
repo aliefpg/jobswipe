@@ -2,7 +2,7 @@
 import { useCallback,useEffect,useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 type Job={id:string;title:string;company_name:string;location_label:string;salary_label:string;job_description:string;claim_until:string};
-export default function Reviewer({email}:{email:string}){const supabase=createClient();const [job,setJob]=useState<Job|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(""),[done,setDone]=useState(0),[counts,setCounts]=useState({pending:0,taken:0,rejected:0});
+export default function Reviewer({email}:{email:string}){const supabase=createClient();const [job,setJob]=useState<Job|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(""),[done,setDone]=useState(0);
  const load=useCallback(async()=>{setLoading(true);setError("");const {data,error}=await supabase.rpc("claim_next_job");if(error)setError(error.message);else setJob(data?.[0]??null);setLoading(false)},[supabase]);
  async function decide(decision:"taken"|"rejected"){if(!job||busy)return;setBusy(true);setError("");const {error}=await supabase.rpc("review_job",{p_job_id:job.id,p_decision:decision});setBusy(false);if(error){setError(error.message);await load();return}setDone(n=>n+1);await load()}
  useEffect(()=>{load()},[load]);
