@@ -63,15 +63,50 @@ export default function Reviewer({ email }: { email: string }) {
     setSwipeDirection(decision);
 
     // One database round-trip: save the decision, claim the next job, and return fresh stats.
-    const { data, error: reviewError } = await supabase.rpc("review_and_claim_next_job", {
+    let { data, error: reviewError } = await supabase.rpc("review_and_claim_next_job", {
       p_job_id: currentJob.id,
       p_decision: decision
     });
 
+    // Compatibility: if the combined RPC has not been installed yet, use
+    // the original review_job + claim_next_job + reviewer_job_stats RPCs.
+    const missingCombinedRpc =
+      reviewError?.code === "PGRST202" ||
+      reviewError?.code === "42883" ||
+      /review_and_claim_next_job.*(not found|does not exist|schema cache)/i.test(reviewError?.message ?? "");
+
+    if (reviewError && missingCombinedRpc) {
+      const legacyReview = await supabase.rpc("review_job", {
+        p_job_id: currentJob.id,
+        p_decision: decision
+      });
+
+      if (!legacyReview.error) {
+        const [nextResult, statsResult] = await Promise.all([
+          supabase.rpc("claim_next_job"),
+          supabase.rpc("reviewer_job_stats")
+        ]);
+
+        if (nextResult.error) {
+          reviewError = nextResult.error;
+        } else if (statsResult.error) {
+          reviewError = statsResult.error;
+        } else {
+          data = {
+            job: (nextResult.data as Job[] | null)?.[0] ?? null,
+            stats: (statsResult.data as Stats[] | null)?.[0] ?? emptyStats
+          };
+          reviewError = null;
+        }
+      } else {
+        reviewError = legacyReview.error;
+      }
+    }
+
     if (reviewError) {
       setSwipeDirection(null);
       setBusy(false);
-      setError(reviewError.message);
+      setError(`Pilihan belum berhasil disimpan: ${reviewError.message}`);
       await load(false);
       return;
     }
