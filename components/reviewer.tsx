@@ -134,7 +134,18 @@ export default function Reviewer({ email }: { email: string }) {
     setJob(result?.job ?? null);
     if (result?.stats) setStats(result.stats);
     setDone((count) => Math.max(0, count - 1));
-    setCanUndo(false);
+
+    // Re-check the remaining history. Keep Undo enabled while older
+    // decisions still exist for this reviewer.
+    const { data: undoAvailable, error: undoStatusError } =
+      await supabase.rpc("reviewer_can_undo");
+    if (!undoStatusError) {
+      setCanUndo(Boolean(undoAvailable));
+    } else {
+      // Avoid disabling Undo just because the status refresh failed.
+      setCanUndo(true);
+    }
+
     setSwipeDirection(null);
     setBusy(false);
   }, [busy, canUndo, supabase]);
