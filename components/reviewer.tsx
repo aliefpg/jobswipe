@@ -1,0 +1,15 @@
+"use client";
+import { useCallback,useEffect,useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+type Job={id:string;title:string;company_name:string;location_label:string;salary_label:string;job_description:string;claim_until:string};
+export default function Reviewer({email}:{email:string}){const supabase=createClient();const [job,setJob]=useState<Job|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(""),[done,setDone]=useState(0),[counts,setCounts]=useState({pending:0,taken:0,rejected:0});
+ const load=useCallback(async()=>{setLoading(true);setError("");const {data,error}=await supabase.rpc("claim_next_job");if(error)setError(error.message);else setJob(data?.[0]??null);setLoading(false)},[supabase]);
+ async function decide(decision:"taken"|"rejected"){if(!job||busy)return;setBusy(true);setError("");const {error}=await supabase.rpc("review_job",{p_job_id:job.id,p_decision:decision});setBusy(false);if(error){setError(error.message);await load();return}setDone(n=>n+1);await load()}
+ useEffect(()=>{load()},[load]);
+ useEffect(()=>{const fn=(e:KeyboardEvent)=>{if(e.key==="ArrowRight")decide("taken");if(e.key==="ArrowLeft")decide("rejected")};window.addEventListener("keydown",fn);return()=>window.removeEventListener("keydown",fn)});
+ async function logout(){await supabase.auth.signOut();location.href="/login"}
+ let startX=0;
+ return <main className="shell"><header className="top"><div><div className="brand">Job<span>Swipe</span></div><div className="muted">Reviewer · {email}</div></div><button className="btn secondary" onClick={logout}>Logout</button></header><div className="row spread"><div><h2>Seleksi Lowongan</h2><p className="muted">Geser kanan untuk ambil, kiri untuk buang.</p></div><span className="pill">Diproses sesi ini: {done}</span></div>
+ {error&&<p className="error">{error}</p>}
+ {loading?<div className="panel">Memuat lowongan berikutnya...</div>:job?<><article className="job-card" onTouchStart={e=>{startX=e.touches[0].clientX}} onTouchEnd={e=>{const dx=e.changedTouches[0].clientX-startX;if(Math.abs(dx)>80)decide(dx>0?"taken":"rejected")}}><span className="pill">LOWONGAN BERIKUTNYA</span><h1>{job.title}</h1><strong>{job.company_name}</strong><div className="row muted" style={{marginTop:14}}><span>📍 {job.location_label||"Lokasi tidak tersedia"}</span><span>💰 {job.salary_label||"Gaji tidak dicantumkan"}</span></div><div className="description">{job.job_description||"Tidak ada deskripsi pekerjaan."}</div></article><div className="swipe-actions"><button className="action danger" disabled={busy} onClick={()=>decide("rejected")}>← Buang</button><button className="action success" disabled={busy} onClick={()=>decide("taken")}>Ambil →</button></div><p className="muted" style={{textAlign:"center",fontSize:13}}>Shortcut: ← buang · → ambil</p></>:<div className="panel" style={{textAlign:"center",padding:50}}><h2>Antrean selesai 🎉</h2><p className="muted">Tidak ada lowongan yang menunggu seleksi saat ini.</p><button className="btn secondary" onClick={load}>Periksa lagi</button></div>}
+ </main>}
