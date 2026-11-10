@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
+type Stats = { total: number; pending: number; taken: number; rejected: number };
+
 type Job = {
   id: string;
   title: string;
@@ -20,13 +22,26 @@ export default function Reviewer({ email }: { email: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(0);
+  const [stats, setStats] = useState<Stats>({ total: 0, pending: 0, taken: 0, rejected: 0 });
   const pointerStartX = useRef<number | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const refreshStats = useCallback(async () => {
+    const { data, error: statsError } = await supabase.rpc("reviewer_job_stats");
+    if (statsError) {
+      setError(`Gagal memuat statistik. Jalankan supabase/optimization.sql di Supabase: ${statsError.message}`);
+      return;
+    }
+    if (data?.[0]) setStats(data[0] as Stats);
+  }, [supabase]);
+
+  const load = useCallback(async (showLoader = true) => {
+    if (showLoader) setLoading(true);
     setError("");
 
-    const { data, error: claimError } = await supabase.rpc("claim_next_job");
+    const [{ data, error: claimError }] = await Promise.all([
+      supabase.rpc("claim_next_job"),
+      refreshStats()
+    ]);
 
     if (claimError) {
       setError(claimError.message);
@@ -36,8 +51,8 @@ export default function Reviewer({ email }: { email: string }) {
       setJob(rows?.[0] ?? null);
     }
 
-    setLoading(false);
-  }, [supabase]);
+    if (showLoader) setLoading(false);
+  }, [refreshStats, supabase]);
 
   const decide = useCallback(async (decision: "taken" | "rejected") => {
     if (!job || busy) return;
@@ -59,7 +74,7 @@ export default function Reviewer({ email }: { email: string }) {
     }
 
     setDone((count) => count + 1);
-    await load();
+    await load(false);
   }, [busy, job, load, supabase]);
 
   useEffect(() => {
@@ -98,6 +113,23 @@ export default function Reviewer({ email }: { email: string }) {
         </div>
         <span className="pill">Diproses sesi ini: {done}</span>
       </div>
+
+      <section className="grid" aria-label="Statistik lowongan">
+        {[
+          ["Total Lowongan", stats.total],
+          ["Belum Direview", stats.pending],
+          ["Diambil", stats.taken],
+          ["Dibuang", stats.rejected]
+        ].map(([label, value]) => (
+          <div className="panel stat" key={String(label)}>
+            <span className="muted">{label}</span>
+            <strong>{Number(value).toLocaleString("id-ID")}</strong>
+          </div>
+        ))}
+      </section>
+      <p className="muted" style={{ fontSize: 13 }}>
+        Progress review: {stats.total ? Math.round(((stats.taken + stats.rejected) / stats.total) * 100) : 0}% selesai
+      </p>
 
       {error && <p className="error" role="alert">{error}</p>}
 

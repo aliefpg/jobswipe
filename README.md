@@ -67,3 +67,10 @@ The reviewer calls `claim_next_job()` to atomically claim one pending job. The d
 - RLS restricts reviewer reads to their currently claimed job and their own history.
 - Admin exports use the authenticated browser client; RLS allows admin to read all jobs.
 - For production, configure SMTP, strong passwords, HTTPS, and restrict who can create Auth users.
+
+
+## Optimasi performa dan statistik Reviewer
+
+Jika database JobSwipe sudah pernah dibuat, jalankan isi `supabase/optimization.sql` satu kali di Supabase Dashboard → SQL Editor → New query → Run. Ini menambahkan index antrean, menghindari update massal saat mengambil lowongan, dan menyediakan statistik global yang aman untuk Reviewer. Untuk instalasi baru, `supabase/schema.sql` sudah memuat perubahan ini.
+
+Import Excel besar diproses dalam batch 500 baris agar request tidak mengirim seluruh file sebagai satu payload besar. Dashboard Reviewer menampilkan total, pending, diambil, dibuang, dan persentase progres review.

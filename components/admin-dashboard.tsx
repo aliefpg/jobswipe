@@ -95,13 +95,19 @@ export default function AdminDashboard({
         );
       }
 
-      const { data, error } = await supabase.rpc("admin_import_jobs", {
-        p_jobs: jobs
-      });
+      const batchSize = 500;
+      let imported = 0;
+      for (let offset = 0; offset < jobs.length; offset += batchSize) {
+        const batch = jobs.slice(offset, offset + batchSize);
+        setMessage(`Mengimpor ${Math.min(offset + batch.length, jobs.length)} dari ${jobs.length} lowongan...`);
+        const { data, error } = await supabase.rpc("admin_import_jobs", {
+          p_jobs: batch
+        });
+        if (error) throw error;
+        imported += Number(data ?? batch.length);
+      }
 
-      if (error) throw error;
-
-      setMessage(`${data ?? jobs.length} lowongan berhasil diimpor.`);
+      setMessage(`${imported} lowongan berhasil diimpor.`);
       await refresh();
     } catch (error: unknown) {
       setMessage(
