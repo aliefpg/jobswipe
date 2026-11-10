@@ -19,7 +19,8 @@ export default async function ReviewPage() {
     .eq("id", user.id)
     .maybeSingle();
 
-  if (profile?.role !== "reviewer") redirect("/");
-
+  if (profile?.role !== "reviewer") {
+    return <main className="shell"><div className="panel stack"><h1>Akun ini bukan Reviewer</h1><p className="muted">Role akun yang terbaca: {profile?.role ?? "belum ada"}. Minta Admin memeriksa role akun pada tabel profiles di Supabase. Halaman tidak akan diarahkan berulang-ulang.</p></div></main>;
+  }
   return <Reviewer email={user.email ?? ""} />;
 }
