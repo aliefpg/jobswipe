@@ -15,7 +15,52 @@ type Job = {
 };
 type ReviewResult = { job: Job | null; stats: Stats };
 
+
 const emptyStats: Stats = { total: 0, pending: 0, taken: 0, rejected: 0 };
+
+function formatDescription(raw: string) {
+  const normalized = (raw || "")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[–—]/g, "-")
+    .replace(/\s+Job Desc\s*:/gi, "\nJob Desc:")
+    .replace(/\s+Requirement\s*:/gi, "\nRequirement:")
+    .replace(/\s+Persyaratan\s*:/gi, "\nPersyaratan:");
+
+  const sections: { heading: string; items: string[] }[] = [];
+  const lines = normalized.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+
+  for (const line of lines) {
+    const match = line.match(/^(Requirement|Persyaratan|Job Desc|Deskripsi Pekerjaan)\s*:\s*/i);
+    let heading = "Deskripsi";
+    let body = line;
+
+    if (match) {
+      heading = /^requirement$/i.test(match[1]) ? "Requirement"
+        : /^persyaratan$/i.test(match[1]) ? "Persyaratan"
+        : /^job desc$/i.test(match[1]) ? "Job Description"
+        : "Deskripsi Pekerjaan";
+      body = line.slice(match[0].length);
+    }
+
+    // Source Excel commonly stores list entries as " - item - item".
+    const items = body
+      .split(/\s+-\s+/)
+      .map((part) => part.replace(/^\s*[-•]\s*/, "").trim())
+      .filter(Boolean);
+
+    if (!items.length) continue;
+    const existing = sections.find((section) => section.heading === heading);
+    if (existing) existing.items.push(...items);
+    else sections.push({ heading, items });
+  }
+
+  if (!sections.length) {
+    const fallback = normalized.split(/\s+-\s+/).map((part) => part.trim()).filter(Boolean);
+    sections.push({ heading: "Deskripsi Pekerjaan", items: fallback.length ? fallback : [raw] });
+  }
+
+  return sections;
+}
 
 export default function Reviewer({ email }: { email: string }) {
   const supabase = createClient();
@@ -174,6 +219,7 @@ export default function Reviewer({ email }: { email: string }) {
 
   const reviewed = stats.taken + stats.rejected;
   const progress = stats.total > 0 ? Math.min(100, Math.round((reviewed / stats.total) * 100)) : 0;
+  const descriptionSections = job ? formatDescription(job.job_description || "") : [];
 
   return (
     <main className="shell">
@@ -207,24 +253,48 @@ export default function Reviewer({ email }: { email: string }) {
         ))}
       </section>
 
-      <section className="panel progress-panel" aria-label="Progress review">
-        <div className="row spread progress-heading">
-          <strong>Progress Review</strong>
-          <strong>{progress}%</strong>
+      <section
+        className="panel progress-panel"
+        aria-label="Progress review"
+        style={{ padding: "20px 24px", borderRadius: 18, display: "grid", gap: 12 }}
+      >
+        <div className="row spread progress-heading" style={{ alignItems: "center", gap: 12 }}>
+          <div>
+            <strong style={{ display: "block", fontSize: 16 }}>Progress Review</strong>
+            <span className="muted" style={{ fontSize: 14 }}>
+              {reviewed.toLocaleString("id-ID")} dari {stats.total.toLocaleString("id-ID")} lowongan selesai
+            </span>
+          </div>
+          <strong style={{ fontSize: 22, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{progress}%</strong>
         </div>
         <div
-          className="progress-track"
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={progress}
           aria-label="Persentase lowongan selesai direview"
+          style={{
+            width: "100%",
+            height: 12,
+            background: "#e8edf5",
+            borderRadius: 999,
+            overflow: "hidden"
+          }}
         >
-          <div className="progress-fill" style={{ width: `${progress}%` }} />
+          <div
+            style={{
+              width: `${progress}%`,
+              height: "100%",
+              minWidth: progress > 0 ? 8 : 0,
+              background: "linear-gradient(90deg, #2563eb, #16a34a)",
+              borderRadius: 999,
+              transition: "width 350ms ease"
+            }}
+          />
         </div>
-        <div className="row spread muted progress-caption">
-          <span>{reviewed.toLocaleString("id-ID")} selesai direview</span>
-          <span>{stats.total.toLocaleString("id-ID")} total lowongan</span>
+        <div className="row spread muted progress-caption" style={{ fontSize: 13 }}>
+          <span>✓ {reviewed.toLocaleString("id-ID")} selesai</span>
+          <span>{stats.pending.toLocaleString("id-ID")} tersisa</span>
         </div>
       </section>
 
@@ -252,7 +322,20 @@ export default function Reviewer({ email }: { email: string }) {
               <span>📍 {job.location_label || "Lokasi tidak tersedia"}</span>
               <span>💰 {job.salary_label || "Gaji tidak dicantumkan"}</span>
             </div>
-            <div className="description">{job.job_description || "Tidak ada deskripsi pekerjaan."}</div>
+            <div className="description" style={{ marginTop: 22, lineHeight: 1.65 }}>
+              {descriptionSections.length ? descriptionSections.map((section, sectionIndex) => (
+                <section key={`${section.heading}-${sectionIndex}`} style={{ marginBottom: 16 }}>
+                  <strong style={{ display: "block", marginBottom: 8, color: "#172554" }}>
+                    {section.heading}
+                  </strong>
+                  <ul style={{ margin: 0, paddingLeft: 22, display: "grid", gap: 6 }}>
+                    {section.items.map((item, itemIndex) => (
+                      <li key={`${sectionIndex}-${itemIndex}`}>{item}</li>
+                    ))}
+                  </ul>
+                </section>
+              )) : <p>Tidak ada deskripsi pekerjaan.</p>}
+            </div>
             {busy && <div className="saving-indicator"><span className="spinner" /> Menyimpan pilihan...</div>}
           </article>
 
