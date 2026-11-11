@@ -122,38 +122,51 @@ export default function AdminDashboard({
   }
 
   async function deleteAllJobs() {
-    if (busy || deleteBusy || stats.total === 0) return;
+    if (busy || deleteBusy) {
+      window.alert("Masih ada proses yang berjalan. Tunggu sampai selesai.");
+      return;
+    }
+
+    if (stats.total === 0) {
+      window.alert("Tidak ada lowongan untuk dihapus.");
+      return;
+    }
 
     const confirmation = window.prompt(
-      `PERINGATAN: tindakan ini akan menghapus SEMUA ${stats.total.toLocaleString("id-ID")} lowongan beserta riwayat review dan Undo.\n\nKetik HAPUS SEMUA untuk melanjutkan:`
+      `PERINGATAN: semua ${stats.total.toLocaleString("id-ID")} lowongan dan riwayat review akan dihapus permanen.\\n\\nKetik HAPUS SEMUA untuk melanjutkan:`
     );
 
-    if (confirmation !== "HAPUS SEMUA") {
-      if (confirmation !== null) setMessage("Penghapusan dibatalkan: konfirmasi tidak cocok.");
+    if ((confirmation ?? "").trim().toUpperCase() !== "HAPUS SEMUA") {
+      window.alert("Penghapusan dibatalkan. Teks konfirmasi tidak cocok.");
       return;
     }
 
     setDeleteBusy(true);
     setBusy(true);
-    setMessage("Menghapus seluruh data lowongan dan riwayat review...");
+    setMessage("Sedang menghapus seluruh data lowongan...");
+    window.alert("Permintaan penghapusan dikirim ke database. Tekan OK untuk melihat hasilnya.");
 
     try {
       const { data, error } = await supabase.rpc("admin_clear_jobs");
-      if (error) throw error;
+
+      if (error) {
+        throw new Error(`${error.message}${error.details ? ` | ${error.details}` : ""}${error.hint ? ` | Petunjuk: ${error.hint}` : ""}`);
+      }
 
       const deleted = Number(data ?? 0);
-      setStats({ total: 0, pending: 0, taken: 0, rejected: 0 });
-      setMessage(`${deleted.toLocaleString("id-ID")} lowongan berhasil dihapus. Akun Admin dan Reviewer tetap aman.`);
+      await refresh();
+
+      const successMessage = `Berhasil menghapus ${deleted.toLocaleString("id-ID")} lowongan beserta riwayat review. Akun Admin dan Reviewer tetap aman.`;
+      setMessage(successMessage);
+      window.alert(successMessage);
     } catch (error: unknown) {
-      setMessage(
-        `Gagal menghapus data: ${
-          error instanceof Error ? error.message : "Terjadi kesalahan saat menghapus data."
-        }`
-      );
+      const errorMessage =
+        error instanceof Error ? error.message : "Terjadi kesalahan yang tidak diketahui.";
+      setMessage(`Gagal menghapus data: ${errorMessage}`);
+      window.alert(`GAGAL MENGHAPUS DATA\\n\\n${errorMessage}`);
     } finally {
       setDeleteBusy(false);
       setBusy(false);
-      await refresh();
     }
   }
 
