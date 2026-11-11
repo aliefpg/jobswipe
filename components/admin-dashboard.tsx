@@ -32,6 +32,7 @@ export default function AdminDashboard({
   const [stats, setStats] = useState<Stats>(initial);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   async function refresh() {
     const { data, error } = await supabase.rpc("admin_job_stats");
@@ -117,6 +118,42 @@ export default function AdminDashboard({
       );
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function deleteAllJobs() {
+    if (busy || deleteBusy || stats.total === 0) return;
+
+    const confirmation = window.prompt(
+      `PERINGATAN: tindakan ini akan menghapus SEMUA ${stats.total.toLocaleString("id-ID")} lowongan beserta riwayat review dan Undo.\n\nKetik HAPUS SEMUA untuk melanjutkan:`
+    );
+
+    if (confirmation !== "HAPUS SEMUA") {
+      if (confirmation !== null) setMessage("Penghapusan dibatalkan: konfirmasi tidak cocok.");
+      return;
+    }
+
+    setDeleteBusy(true);
+    setBusy(true);
+    setMessage("Menghapus seluruh data lowongan dan riwayat review...");
+
+    try {
+      const { data, error } = await supabase.rpc("admin_clear_jobs");
+      if (error) throw error;
+
+      const deleted = Number(data ?? 0);
+      setStats({ total: 0, pending: 0, taken: 0, rejected: 0 });
+      setMessage(`${deleted.toLocaleString("id-ID")} lowongan berhasil dihapus. Akun Admin dan Reviewer tetap aman.`);
+    } catch (error: unknown) {
+      setMessage(
+        `Gagal menghapus data: ${
+          error instanceof Error ? error.message : "Terjadi kesalahan saat menghapus data."
+        }`
+      );
+    } finally {
+      setDeleteBusy(false);
+      setBusy(false);
+      await refresh();
     }
   }
 
@@ -232,6 +269,28 @@ export default function AdminDashboard({
             <button className="btn secondary" disabled={busy} onClick={() => void refresh()}>
               Refresh statistik
             </button>
+          </div>
+        </div>
+
+        <div className="panel stack">
+          <h2>Hapus data lowongan</h2>
+          <p className="muted">
+            Jika salah mengimpor Excel, Admin dapat mengosongkan seluruh data lowongan
+            lalu mengimpor file yang benar. Tindakan ini menghapus semua lowongan,
+            hasil Ambil/Buang, serta riwayat Undo. Akun Admin dan Reviewer tidak dihapus.
+          </p>
+          <div className="row">
+            <button
+              className="btn danger"
+              disabled={busy || stats.total === 0}
+              onClick={() => void deleteAllJobs()}
+            >
+              {deleteBusy ? "Menghapus..." : `Hapus semua ${stats.total.toLocaleString("id-ID")} lowongan`}
+            </button>
+          </div>
+          <div className="notice">
+            Penghapusan permanen dan tidak dapat di-Undo. Export hasil seleksi terlebih dahulu
+            jika masih diperlukan.
           </div>
         </div>
 
