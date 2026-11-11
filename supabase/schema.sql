@@ -156,6 +156,23 @@ begin
 end;
 $$;
 
+create or replace function public.admin_clear_jobs()
+returns bigint language plpgsql security definer set search_path=public
+as $$
+declare deleted_count bigint;
+begin
+  if auth.uid() is null or public.current_jobswipe_role() <> 'admin' then
+    raise exception 'Admin access required';
+  end if;
+
+  lock table public.jobs, public.swipe_history in access exclusive mode;
+  delete from public.swipe_history;
+  delete from public.jobs;
+  get diagnostics deleted_count = row_count;
+  return deleted_count;
+end;
+$$;
+
 
 -- Reviewer-safe aggregate counts. SECURITY DEFINER bypasses row-level visibility
 -- so reviewer can see global totals without reading other users' job rows.
@@ -179,11 +196,13 @@ revoke all on function public.admin_import_jobs(jsonb) from public;
 revoke all on function public.claim_next_job() from public;
 revoke all on function public.review_job(uuid,text) from public;
 revoke all on function public.admin_job_stats() from public;
+revoke all on function public.admin_clear_jobs() from public;
 revoke all on function public.reviewer_job_stats() from public;
 grant execute on function public.admin_import_jobs(jsonb) to authenticated;
 grant execute on function public.claim_next_job() to authenticated;
 grant execute on function public.review_job(uuid,text) to authenticated;
 grant execute on function public.admin_job_stats() to authenticated;
+grant execute on function public.admin_clear_jobs() to authenticated;
 grant execute on function public.reviewer_job_stats() to authenticated;
 
 -- Prevent direct writes from browser clients; writes go through the guarded RPC functions.

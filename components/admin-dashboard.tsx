@@ -133,7 +133,7 @@ export default function AdminDashboard({
     }
 
     const confirmation = window.prompt(
-      `PERINGATAN: semua ${stats.total.toLocaleString("id-ID")} lowongan dan riwayat review akan dihapus permanen.\\n\\nKetik HAPUS SEMUA untuk melanjutkan:`
+      `PERINGATAN: semua ${stats.total.toLocaleString("id-ID")} lowongan dan riwayat review akan dihapus permanen.\n\nKetik HAPUS SEMUA untuk melanjutkan:`
     );
 
     if ((confirmation ?? "").trim().toUpperCase() !== "HAPUS SEMUA") {
@@ -144,7 +144,6 @@ export default function AdminDashboard({
     setDeleteBusy(true);
     setBusy(true);
     setMessage("Sedang menghapus seluruh data lowongan...");
-    window.alert("Permintaan penghapusan dikirim ke database. Tekan OK untuk melihat hasilnya.");
 
     try {
       const { data, error } = await supabase.rpc("admin_clear_jobs");
@@ -163,7 +162,7 @@ export default function AdminDashboard({
       const errorMessage =
         error instanceof Error ? error.message : "Terjadi kesalahan yang tidak diketahui.";
       setMessage(`Gagal menghapus data: ${errorMessage}`);
-      window.alert(`GAGAL MENGHAPUS DATA\\n\\n${errorMessage}`);
+      window.alert(`GAGAL MENGHAPUS DATA\n\n${errorMessage}`);
     } finally {
       setDeleteBusy(false);
       setBusy(false);

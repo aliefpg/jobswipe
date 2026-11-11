@@ -9,6 +9,7 @@ A shared-queue job review app with one Admin and one Reviewer:
 ## 1. Supabase setup
 1. Create a Supabase project.
 2. Open SQL Editor and run all of `supabase/schema.sql`.
+   If the database was already set up before the Admin delete-all action was added, run `supabase/admin-clear-jobs.sql` once in SQL Editor.
 3. In Authentication > Providers, enable Email.
 4. For a simple private app, disable public signups after creating the two accounts (Authentication > Settings / User Signups).
 5. Create the Admin user first from Authentication > Users > Add user.
